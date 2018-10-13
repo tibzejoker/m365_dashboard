@@ -17,11 +17,13 @@ void WDTint_() {
   } else WDTcounts++;
 }
 
-void setup() {
-  XIAOMI_PORT.begin(115200);
 
+void setup() {
+  
+  XIAOMI_PORT.begin(115200);
+  
   byte cfgID = EEPROM.read(0);
-  if (cfgID == 128) {
+  if (cfgID = 128) {
     autoBig = EEPROM.read(1);
     warnBatteryPercent = EEPROM.read(2);
     bigMode = EEPROM.read(3);
@@ -34,23 +36,21 @@ void setup() {
     EEPROM.put(4, bigWarn);
   }
 
-#ifdef DISPLAY_I2C
   Wire.begin();
   Wire.setClock(400000L);
+
   display.begin(&Adafruit128x64, 0x3C);
-#endif
-#ifdef DISPLAY_SPI
-  display.begin(&Adafruit128x64, PIN_CS, PIN_DC, PIN_RST);
-#endif
-  
   display.setFont(m365);
   displayClear(0, true);
   display.setCursor(0, 0);
   display.print((char)0x20);
   display.setFont(defaultFont);
-
+  pinMode (13,OUTPUT);
+  pinMode (12,OUTPUT);
+  digitalWrite(13, HIGH);
+  digitalWrite(12, HIGH);
   unsigned long wait = millis() + 2000;
-  while ((wait > millis()) || ((wait - 1000 > millis()) && (S25C31.current != 0) && (S25C31.voltage != 0) && (S25C31.remainPercent != 0))) {
+  while ((S25C31.current != 0) && (S25C31.voltage != 0) && (S25C31.remainPercent != 0)) {
     dataFSM();
     if (_Query.prepared == 0) prepareNextQuery();
     Message.Process();
@@ -58,7 +58,7 @@ void setup() {
 
   if ((S25C31.current == 0) && (S25C31.voltage == 0) && (S25C31.remainPercent == 0)) {
     displayClear(1);
-    display.set2X();
+    
     display.setCursor(0, 0);
     display.println((const __FlashStringHelper *) noBUS1);
     display.println((const __FlashStringHelper *) noBUS2);
@@ -68,12 +68,26 @@ void setup() {
   } else displayClear(1);
 
   WDTcounts = 0;
-  WatchDog::init(WDTint_, 500);
+  wdt_enable(WDTO_250MS);
+ // WatchDog::init(WDTint_, 500);
 }
 
 void loop() { //cycle time w\o data exchange ~8 us :)
+  if (watchdogState == false)
+  {
+    digitalWrite(13, HIGH);
+    digitalWrite(12, HIGH);
+    watchdogState = true;
+  }
+  else
+  {
+    digitalWrite(13, LOW);
+    digitalWrite(12, LOW);
+    watchdogState = false;
+  }
+  
   dataFSM();
-
+  wdt_reset();
   if (_Query.prepared == 0) prepareNextQuery();
 
   if (_NewDataFlag == 1) {
@@ -222,14 +236,9 @@ void displayFSM() {
   int throttleVal = -1;
 
   int tmp_0, tmp_1;
-  //Custom Wheel size, check the top of defines.h
-  int _speed;
-  _speed = abs(S23CB0.speed);
-  #ifdef CUSTOM_WHELL_SIZE
-    _speed = _speed * WHELL_SIZE / 85;
-  #endif
-  m365_info.sph = _speed / 1000;                  // speed
-  m365_info.spl = _speed % 1000 / 100;
+
+  m365_info.sph = abs(S23CB0.speed) / 1000;         //speed
+  m365_info.spl = abs(S23CB0.speed) % 1000 / 100;
   m365_info.curh = abs(S25C31.current) / 100;       //current
   m365_info.curl = abs(S25C31.current) % 100;
   m365_info.vh = abs(S25C31.voltage) / 100;         //voltage
@@ -242,14 +251,14 @@ void displayFSM() {
   }
 
   if ((S23CB0.speed <= 200) || Settings) {
-    if (S20C00HZ65.brake > 130)
+    if (S20C00HZ65.brake > 80)
     brakeVal = 1;
       else
       if (S20C00HZ65.brake < 50)
         brakeVal = -1;
         else
         brakeVal = 0;
-    if (S20C00HZ65.throttle > 150)
+    if (S20C00HZ65.throttle > 80)
       throttleVal = 1;
       else
       if (S20C00HZ65.throttle < 50)
@@ -286,26 +295,45 @@ void displayFSM() {
           break;
         case 4:
           switch (cfgKERS) {
+            case 0:
+              cfgKERS = 1;
+              break;
             case 1:
               cfgKERS = 2;
               break;
             case 2:
+              cfgKERS = 3;
+              break;
+            case 3:
               cfgKERS = 0;
               break;
             default: 
-              cfgKERS = 1;
+             cfgKERS = 0;
+              
           }
           break;
         case 5:
           switch (cfgKERS) { 
+            case 0:
+              prepareCommand(CMD_WEAK);
+              break;
             case 1:
               prepareCommand(CMD_MEDIUM);
               break;
             case 2:
               prepareCommand(CMD_STRONG);
               break;
+            case 3:
+              hibernate = true;
+              displayClear(3);
+              display.set1X();
+              display.setFont(defaultFont);
+              display.setCursor(0, 0);
+              display.print("Hibernate");
+              break;
             default: 
               prepareCommand(CMD_WEAK);
+             
           }
           break;
         case 6:
@@ -378,12 +406,19 @@ void displayFSM() {
 
       display.print((const __FlashStringHelper *) M365CfgScr5);
       switch (cfgKERS) {
+        case 0:
+          display.print((const __FlashStringHelper *) l_Weak);
+          break;
         case 1:
           display.print((const __FlashStringHelper *) l_Medium);
           break;
         case 2:
           display.print((const __FlashStringHelper *) l_Strong);
           break;
+        case 3:
+          display.print((const __FlashStringHelper *) l_Hibernate);
+          break;
+          
         default:
           display.print((const __FlashStringHelper *) l_Weak);
           break;
@@ -607,8 +642,14 @@ void displayFSM() {
       return;
     } else
     if ((throttleVal == 1) && (oldThrottleVal != 1) && (brakeVal == -1) && (oldBrakeVal == -1)) {
+      
+         
+        
+      
+      
+      
       displayClear(3);
-
+      
       display.set1X();
       display.setFont(defaultFont);
       display.setCursor(0, 0);
@@ -627,7 +668,7 @@ void displayFSM() {
       display.print(tmp_1);
       display.setFont(defaultFont);
       display.print((const __FlashStringHelper *) l_km);
-
+      
       display.setCursor(0, 5);
       display.print((const __FlashStringHelper *) infoScr2);
       display.print(':');
@@ -644,6 +685,8 @@ void displayFSM() {
 
       return;
     }
+  
+    
 
     oldBrakeVal = brakeVal;
     oldThrottleVal = throttleVal;
@@ -682,7 +725,7 @@ void displayFSM() {
           display.print(tmp_1);
           display.setFont(defaultFont);
           if ((S25C31.current >= 0) || ((S25C31.current < 0) && (millis() % 1000 < 500))) {
-            display.set2X();
+            
             display.setCursor(108, 4);
             display.print((const __FlashStringHelper *) l_a);
           }
@@ -872,7 +915,7 @@ void processPacket(unsigned char * data, unsigned char len) {
             case 0x64: //BLE ask controller
               break;
             case 0x65:
-              if (_Query.prepared == 1 && !_Hibernate) writeQuery();
+              if (_Query.prepared == 1 && !hibernate) writeQuery();
 
               memcpy((void*)& S20C00HZ65, (void*)data, RawDataLen);
 

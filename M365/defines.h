@@ -1,25 +1,8 @@
-#include "WatchDog.h"
-
-// Select either SPI or I2C(Wire) Display Mode
-//#define DISPLAY_SPI
-#define DISPLAY_I2C
+//#include "WatchDog.h"
+#include "avr/wdt.h"
 
 #include "SSD1306Ascii.h"
-#ifdef DISPLAY_SPI
-  #include <SPI.h>
-  #include "SSD1306AsciiSpi.h"
-  #define PIN_CS  4
-  #define PIN_RST 3
-  #define PIN_DC  5
-#endif
-#ifdef DISPLAY_I2C
-  #include "SSD1306AsciiWire.h"
-#endif
-#include "fonts/m365.h"
-#include "fonts/System5x7mod.h"
-#include "fonts/stdNumb.h"
-#include "fonts/bigNumb.h"
-
+#include "SSD1306AsciiWire.h"
 #include <EEPROM.h>
 
 #include "language.h"
@@ -28,7 +11,10 @@
 MessagesClass Message;
 
 const unsigned int LONG_PRESS = 2000;
+const unsigned int HIBERNATE_PRESS = 10000;
+
 byte warnBatteryPercent = 5;
+bool watchdogState = false;
 
 bool autoBig = true;
 byte bigMode = 0;
@@ -49,20 +35,8 @@ volatile int oldBrakeVal = -1;
 volatile int oldThrottleVal = -1;
 
 unsigned long timer = 0; 
-
-#ifdef DISPLAY_SPI
-SSD1306AsciiSpi display;
-#endif
-#ifdef DISPLAY_I2C
+bool entrer = false;
 SSD1306AsciiWire display;
-#endif
-
-
-//#define CUSTOM_WHELL_SIZE;
-
-#ifdef CUSTOM_WHELL_SIZE
-  const int WHELL_SIZE = 100; //10"
-#endif
 
 byte WDTcounts = 0;
 void(* resetFunc) (void) = 0;
@@ -83,7 +57,7 @@ struct {
 } _Query;
 
 volatile unsigned char _NewDataFlag = 0; //assign '1' for renew display once
-volatile bool _Hibernate = false;   //disable requests. For flashind or other things
+bool hibernate = false;   //disable requests. For flashind or other things
 
 enum {CMD_CRUISE_ON, CMD_CRUISE_OFF, CMD_LED_ON, CMD_LED_OFF, CMD_WEAK, CMD_MEDIUM, CMD_STRONG};
 struct __attribute__((packed)) CMD{
