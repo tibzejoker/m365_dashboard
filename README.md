@@ -19,8 +19,8 @@ https://www.arduino.cc/en/Main/OldSoftwareReleases
 
 # Physical Connections  
 ![alt text](https://raw.githubusercontent.com/tibzejoker/m365_dashboard/master/diagram.png)
+![alt text](https://raw.githubusercontent.com/tibzejoker/m365_dashboard/master/diagram%202.png)
 
-# Screen caps
 # Soldering, soldered directly to the cable coming from the MCU
 5V To Red    
 GND To Black  
