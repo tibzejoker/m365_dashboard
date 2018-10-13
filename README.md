@@ -1,4 +1,7 @@
 # Xiaomi M365 Display 
+-Added hibernate mode under KERS config.
+-The arduino nano now monitors the arduino pro via the pin 12.
+
 # Products Used  
 Arduino Pro Mini    
 I2C OLED 0.96" Screen    
@@ -26,3 +29,4 @@ https://www.arduino.cc/en/Main/OldSoftwareReleases
 GND To Black  
 BUS To Yellow  
 ![alt text](https://i.imgur.com/3ZwcrIJ.jpg)  
+
