@@ -1,5 +1,6 @@
 # Xiaomi M365 Display 
 -Added hibernate mode under KERS config.
+
 -The arduino nano now monitors the arduino pro via the pin 12.
 
 # Products Used  
